@@ -791,6 +791,26 @@
 
     $('#btnAtualizar').addEventListener('click', () => carregarAdmin());
 
+    $('#btnZerar').addEventListener('click', async () => {
+      const resposta = prompt('Isso apaga TODAS as inscrições e reinicia a numeração em #0001. Digite ZERAR para confirmar:');
+      if (resposta === null) return;
+      if (resposta.trim().toUpperCase() !== 'ZERAR') { toast('Nada foi apagado.', true); return; }
+      const b = $('#btnZerar');
+      carregando(b, true, 'Apagando...');
+      try {
+        await api.admin('zerar', { confirmacao: 'ZERAR' });
+        adminDados = [];
+        vagasCache = null;
+        toast('Todas as inscrições foram apagadas.');
+        desenharAdmin();
+      } catch (err) {
+        if (err.status === 401) return sairAdmin(err.message);
+        toast(err.message, true);
+      } finally {
+        carregando(b, false);
+      }
+    });
+
     let buscaTimer;
     $('#adminBusca').addEventListener('input', () => {
       clearTimeout(buscaTimer);

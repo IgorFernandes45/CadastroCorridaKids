@@ -109,4 +109,10 @@ module.exports = {
     await gravarTudo(restante);
     return { ok: true };
   }),
+
+  zerar: () => exclusivo(async () => {
+    await gravarTudo([]);
+    await fs.rm(SEQUENCIA, { force: true });
+    return { ok: true };
+  }),
 };

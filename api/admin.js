@@ -3,6 +3,7 @@
 //   listar                      -> { inscricoes }
 //   status  { id, status }      -> confirma ou volta para pendente
 //   excluir { id }
+//   zerar   { confirmacao: 'ZERAR' } -> apaga todas as inscrições e reinicia a numeração
 const config = require('./_lib/config');
 const db = require('./_lib/db');
 const { categoriaPorId } = require('./_lib/regras');
@@ -44,6 +45,11 @@ module.exports = rota(['POST'], async (req, res) => {
     case 'excluir': {
       const r = await db.remover(String(body.id || ''));
       if (!r.ok) return enviar(res, 404, { erro: 'Inscrição não encontrada.' });
+      return enviar(res, 200, { ok: true });
+    }
+    case 'zerar': {
+      if (body.confirmacao !== 'ZERAR') return enviar(res, 400, { erro: 'Confirmação inválida.' });
+      await db.zerar();
       return enviar(res, 200, { ok: true });
     }
     default:

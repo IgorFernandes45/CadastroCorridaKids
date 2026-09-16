@@ -2,7 +2,7 @@
 // Estrutura:
 //   ck:insc            hash   id -> inscrição (JSON)
 //   ck:conf:<cat>      set    ids confirmados da categoria (controle de vagas)
-//   ck:dup:<chave>     string id da inscrição daquela criança (evita duplicidade)
+//   ck:dup             hash   chave da criança -> id (evita duplicidade)
 //   ck:seq             número sequencial das inscrições
 const crypto = require('crypto');
 
@@ -16,7 +16,7 @@ const K = {
   insc: `${P}insc`,
   seq: `${P}seq`,
   conf: (cat) => `${P}conf:${cat}`,
-  dup: (chave) => `${P}dup:${chave}`,
+  dup: `${P}dup`,
 };
 
 async function chamar(caminho, corpo) {
@@ -76,12 +76,12 @@ module.exports = {
     if ((await cmd('SCARD', K.conf(dados.categoria))) >= limite) return { ok: false, motivo: 'esgotada' };
 
     const id = crypto.randomBytes(9).toString('base64url');
-    const reservou = await cmd('SET', K.dup(chave), id, 'NX');
-    if (reservou === null) {
-      const idExistente = await cmd('GET', K.dup(chave));
+    const reservou = await cmd('HSETNX', K.dup, chave, id);
+    if (Number(reservou) !== 1) {
+      const idExistente = await cmd('HGET', K.dup, chave);
       const existente = idExistente && await buscar(idExistente);
       if (existente) return { ok: false, motivo: 'duplicada', existente };
-      await cmd('SET', K.dup(chave), id); // chave órfã: reaproveita
+      await cmd('HSET', K.dup, chave, id); // chave órfã: reaproveita
     }
 
     const item = {
@@ -128,8 +128,13 @@ module.exports = {
     await pipeline([
       ['HDEL', K.insc, id],
       ['SREM', K.conf(item.categoria), id],
-      ['DEL', K.dup(item.chave)],
+      ['HDEL', K.dup, item.chave],
     ]);
+    return { ok: true };
+  },
+
+  async zerar() {
+    await cmd('DEL', K.insc, K.seq, K.dup, K.conf('A'), K.conf('B'));
     return { ok: true };
   },
 };

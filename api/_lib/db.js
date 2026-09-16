@@ -11,7 +11,7 @@ function semBanco() {
       publico: 'Inscrições temporariamente indisponíveis. Tente novamente mais tarde.',
     });
   };
-  return { tipo: 'nenhum', confirmadas: falhar, listar: falhar, buscar: falhar, criar: falhar, confirmar: falhar, desconfirmar: falhar, remover: falhar };
+  return { tipo: 'nenhum', confirmadas: falhar, listar: falhar, buscar: falhar, criar: falhar, confirmar: falhar, desconfirmar: falhar, remover: falhar, zerar: falhar };
 }
 
 if (temRedis) module.exports = require('./db-redis');
