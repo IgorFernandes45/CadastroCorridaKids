@@ -7,7 +7,7 @@
   // Remove acentos e caracteres fora do padrão aceito pelos bancos
   function limpar(texto, max) {
     return texto
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^A-Za-z0-9 ]/g, '')
       .toUpperCase().trim().slice(0, max);
   }

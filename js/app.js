@@ -1,12 +1,11 @@
 /* ==========================================================
-   Corrida Kids Nonatão — inscrições (dados salvos no navegador)
+   Corrida Kids Nonatão — inscrições (dados gravados no servidor)
    ========================================================== */
 (function () {
   'use strict';
 
   const CONFIG = {
     evento: {
-      nome: '2ª Corrida Kids do Nonatão',
       data: '2026-10-10',
       inicio: '2026-10-10T17:00:00-03:00',
       dataTexto: '10/10/2026 às 17h',
@@ -19,15 +18,10 @@
     ],
     pix: { chave: '07519004430', nome: 'Angela Ferreira', cidade: 'Uirauna' },
     whatsapp: '5583996724918',
-    admin: { usuario: 'admin', senha: 'nonatao123' },
-    // Trocar este valor apaga as inscrições salvas nos navegadores (usar só antes de abrir as inscrições)
-    versaoDados: '2026-09-16',
   };
 
-  const KEY_DADOS = 'ck_inscricoes';
-  const KEY_SEQ = 'ck_seq';
-  const KEY_ADMIN = 'ck_admin';
-  const KEY_VERSAO = 'ck_versao';
+  const KEY_MINHAS = 'ck_minhas';   // inscrições feitas neste aparelho (só para retomar o pagamento)
+  const KEY_TOKEN = 'ck_token';     // sessão do painel admin
 
   const DDDS = new Set([
     11,12,13,14,15,16,17,18,19,21,22,24,27,28,31,32,33,34,35,37,38,
@@ -38,84 +32,82 @@
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 
-  /* ---------------- Armazenamento ---------------- */
-  const store = {
-    get(key, fallback) {
-      try {
-        const v = localStorage.getItem(key);
-        return v == null ? fallback : JSON.parse(v);
-      } catch (e) { return fallback; }
+  // Limpa dados da versão antiga, que guardava tudo no navegador
+  try { ['ck_inscricoes', 'ck_seq', 'ck_versao', 'ck_admin'].forEach((k) => { localStorage.removeItem(k); sessionStorage.removeItem(k); }); } catch (e) { /* ignora */ }
+
+  /* ---------------- Armazenamento local (conveniência) ---------------- */
+  const local = {
+    get(key, fallback, storage = localStorage) {
+      try { const v = storage.getItem(key); return v == null ? fallback : JSON.parse(v); } catch (e) { return fallback; }
     },
-    set(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; }
-      catch (e) { toast('Não foi possível salvar neste navegador.', true); return false; }
+    set(key, value, storage = localStorage) {
+      try { storage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignora */ }
+    },
+    remove(key, storage = localStorage) {
+      try { storage.removeItem(key); } catch (e) { /* ignora */ }
     },
   };
 
-  // Ao mudar CONFIG.versaoDados, as inscrições salvas antes (ex.: testes) são apagadas.
-  try {
-    if (localStorage.getItem(KEY_VERSAO) !== CONFIG.versaoDados) {
-      localStorage.removeItem(KEY_DADOS);
-      localStorage.removeItem(KEY_SEQ);
-      localStorage.setItem(KEY_VERSAO, CONFIG.versaoDados);
-    }
-  } catch (e) { /* armazenamento indisponível */ }
-
-  // Lista mantida em memória para não reler o localStorage a cada consulta
-  let cache = null;
-
-  const db = {
-    all: () => (cache || (cache = store.get(KEY_DADOS, []))),
-    save(lista) {
-      if (!store.set(KEY_DADOS, lista)) return false;
-      cache = lista;
-      return true;
+  const minhas = {
+    all: () => local.get(KEY_MINHAS, []),
+    salvar(i) {
+      const lista = minhas.all().filter((x) => x.id !== i.id);
+      lista.push({ id: i.id, numero: i.numero, crianca: i.crianca, status: i.status });
+      local.set(KEY_MINHAS, lista.slice(-20));
     },
-    invalidar() { cache = null; },
-    find: (id) => db.all().find((i) => i.id === id),
-    update(id, patch) {
-      const lista = db.all().slice();
-      const idx = lista.findIndex((i) => i.id === id);
-      if (idx < 0) return null;
-      lista[idx] = { ...lista[idx], ...patch };
-      db.save(lista);
-      return lista[idx];
-    },
-    remove(id) { db.save(db.all().filter((i) => i.id !== id)); },
-    add(dados) {
-      const seq = store.get(KEY_SEQ, 0) + 1;
-      const item = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-        numero: seq,
-        ...dados,
-        status: 'pendente',
-        criadaEm: new Date().toISOString(),
-        confirmadaEm: null,
-      };
-      if (!db.save([...db.all(), item])) return null;
-      store.set(KEY_SEQ, seq);
-      return item;
-    },
+    remover(id) { local.set(KEY_MINHAS, minhas.all().filter((x) => x.id !== id)); },
   };
 
-  function contagem() {
-    const soma = {};
-    for (const i of db.all()) {
-      const s = soma[i.categoria] || (soma[i.categoria] = { confirmadas: 0, pendentes: 0 });
-      if (i.status === 'confirmada') s.confirmadas++; else s.pendentes++;
-    }
-    return CONFIG.categorias.map((c) => {
-      const { confirmadas = 0, pendentes = 0 } = soma[c.id] || {};
-      return { ...c, confirmadas, pendentes, restantes: Math.max(0, c.vagas - confirmadas) };
-    });
+  /* ---------------- API ---------------- */
+  class ErroApi extends Error {
+    constructor(msg, status, dados) { super(msg); this.status = status; this.dados = dados || {}; }
   }
-  const categoriaPorId = (id) => CONFIG.categorias.find((c) => c.id === id);
+
+  async function chamar(caminho, { metodo = 'GET', corpo, token } = {}) {
+    const headers = {};
+    if (corpo) headers['Content-Type'] = 'application/json';
+    if (token) headers.Authorization = 'Bearer ' + token;
+    let r;
+    try {
+      r = await fetch(caminho, { method: metodo, headers, body: corpo ? JSON.stringify(corpo) : undefined, cache: 'no-store' });
+    } catch (e) {
+      throw new ErroApi('Sem conexão. Verifique sua internet e tente de novo.', 0);
+    }
+    let dados = {};
+    try { dados = await r.json(); } catch (e) { /* resposta vazia */ }
+    if (!r.ok) throw new ErroApi(dados.erro || 'Algo deu errado. Tente novamente.', r.status, dados);
+    return dados;
+  }
+
+  const api = {
+    vagas: () => chamar('/api/vagas'),
+    buscar: (id) => chamar('/api/inscricoes?id=' + encodeURIComponent(id)),
+    criar: (dados) => chamar('/api/inscricoes', { metodo: 'POST', corpo: dados }),
+    confirmar: (id) => chamar('/api/confirmar', { metodo: 'POST', corpo: { id } }),
+    cancelar: (id) => chamar('/api/cancelar', { metodo: 'POST', corpo: { id } }),
+    admin: (acao, extra = {}) => chamar('/api/admin', {
+      metodo: 'POST',
+      corpo: { acao, ...extra },
+      token: local.get(KEY_TOKEN, null, sessionStorage),
+    }),
+  };
+
+  // Guarda a última contagem de vagas para a prévia da categoria no formulário
+  let vagasCache = null;
+  async function carregarVagas() {
+    const { categorias } = await api.vagas();
+    vagasCache = categorias;
+    return categorias;
+  }
+  const vagaDe = (cat) => (vagasCache || []).find((c) => c.id === cat) || null;
 
   /* ---------------- Utilidades ---------------- */
   const pad = (n, t = 4) => String(n).padStart(t, '0');
   const codigo = (i) => '#' + pad(i.numero);
   const soDigitos = (s) => String(s || '').replace(/\D/g, '');
   const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const categoriaPorId = (id) => CONFIG.categorias.find((c) => c.id === id);
+  const rotaAtual = () => location.hash.split('/')[1] || '';
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -148,18 +140,8 @@
     return idade;
   }
 
-  function capitalizarNome(nome) {
-    const minusculas = new Set(['da', 'de', 'do', 'das', 'dos', 'e']);
-    return nome
-      .toLowerCase()
-      .split(' ')
-      .map((p, i) => (i > 0 && minusculas.has(p))
-        ? p
-        : p.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('-'))
-      .join(' ');
-  }
   const normalizarNome = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-  const semAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const semAcento = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
   function iniciais(nome) {
     const p = nome.split(' ').filter(Boolean);
@@ -173,7 +155,21 @@
     t.classList.toggle('error', erro);
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+    toastTimer = setTimeout(() => t.classList.remove('show'), erro ? 3500 : 2400);
+  }
+
+  function carregando(botao, ativo, texto) {
+    if (!botao) return;
+    if (ativo) {
+      botao.dataset.textoOriginal = botao.innerHTML;
+      botao.classList.add('loading');
+      botao.setAttribute('aria-busy', 'true');
+      if (texto) botao.innerHTML = `<span class="spinner" aria-hidden="true"></span>${texto}`;
+    } else {
+      botao.classList.remove('loading');
+      botao.removeAttribute('aria-busy');
+      if (botao.dataset.textoOriginal) botao.innerHTML = botao.dataset.textoOriginal;
+    }
   }
 
   async function copiar(texto, msg) {
@@ -194,7 +190,7 @@
     toast(msg || 'Copiado!');
   }
 
-  /* ---------------- Validações ---------------- */
+  /* ---------------- Validações (repetidas no servidor) ---------------- */
   const RE_NOME = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
   const RE_NAO_NOME = /[^A-Za-zÀ-ÖØ-öø-ÿ' -]/g;
   const letras = (p) => p.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '').length;
@@ -208,7 +204,7 @@
     if (partes.some((p) => letras(p) < 1 || /^['-]|['-]$/.test(p)) || letras(partes[0]) < 2) return 'Nome inválido.';
     if (letras(partes[partes.length - 1]) < 2) return 'Informe o sobrenome completo.';
     if (v.length < 5) return 'Nome muito curto.';
-    if (/(.)\1\1/i.test(v.replace(/\s/g, ''))) return 'Confira o nome digitado.';
+    if (/(\S)\1\1/i.test(v)) return 'Confira o nome digitado.';
     return '';
   }
 
@@ -233,9 +229,7 @@
     return '';
   }
 
-  function categoriaDaIdade(idade) {
-    return CONFIG.categorias.find((c) => idade >= c.min && idade <= c.max) || null;
-  }
+  const categoriaDaIdade = (idade) => CONFIG.categorias.find((c) => idade >= c.min && idade <= c.max) || null;
 
   /* ---------------- Mensagem WhatsApp ---------------- */
   function linkWhatsapp(i) {
@@ -270,34 +264,51 @@
   }
 
   /* ---------------- Componentes ---------------- */
-  function vagasHTML(admin = false) {
+  // contagens: [{ id, confirmadas, pendentes? }]
+  function vagasHTML(contagens, admin = false) {
     const R = 40, C = 2 * Math.PI * R;
-    return contagem().map((c) => {
-      const pct = c.confirmadas / c.vagas;
-      const cor = c.id === 'A' ? 'var(--blue)' : 'var(--red)';
+    return CONFIG.categorias.map((base) => {
+      const dados = contagens.find((x) => x.id === base.id) || {};
+      const confirmadas = dados.confirmadas || 0;
+      const restantes = Math.max(0, base.vagas - confirmadas);
+      const pct = Math.min(1, confirmadas / base.vagas);
+      const cor = base.id === 'A' ? 'var(--blue)' : 'var(--red)';
       let badge;
-      if (c.restantes === 0) badge = '<span class="badge badge-full">Esgotado</span>';
-      else if (c.restantes <= Math.ceil(c.vagas * 0.2)) badge = '<span class="badge badge-warn">Últimas vagas</span>';
+      if (restantes === 0) badge = '<span class="badge badge-full">Esgotado</span>';
+      else if (restantes <= Math.ceil(base.vagas * 0.2)) badge = '<span class="badge badge-warn">Últimas vagas</span>';
       else badge = '<span class="badge badge-ok">Abertas</span>';
       const rodape = admin
-        ? `${c.confirmadas}/${c.vagas} confirmadas<br>${c.pendentes} pendente(s)`
-        : `de ${c.vagas} vagas`;
+        ? `${confirmadas}/${base.vagas} confirmadas<br>${dados.pendentes || 0} pendente(s)`
+        : `de ${base.vagas} vagas`;
       return `
         <div class="vaga">
-          <div class="vaga-top"><span class="vaga-cat">${c.nome}</span></div>
+          <div class="vaga-top"><span class="vaga-cat">${base.nome}</span></div>
           <div class="ring">
             <svg viewBox="0 0 100 100" aria-hidden="true">
               <circle class="track" cx="50" cy="50" r="${R}"/>
               <circle class="bar" cx="50" cy="50" r="${R}" stroke="${cor}"
                 stroke-dasharray="${C}" stroke-dashoffset="${C}" data-offset="${C * (1 - pct)}"/>
             </svg>
-            <div class="ring-num"><b>${c.restantes}</b><span>restantes</span></div>
+            <div class="ring-num"><b>${restantes}</b><span>restantes</span></div>
           </div>
           <div class="vaga-foot">${rodape}</div>
           <div style="text-align:center">${badge}</div>
         </div>`;
     }).join('');
   }
+
+  const vagasSkeleton = () => CONFIG.categorias.map((c) => `
+    <div class="vaga skeleton-card">
+      <div class="vaga-top"><span class="vaga-cat">${c.nome}</span></div>
+      <div class="ring"><div class="skeleton skeleton-ring"></div></div>
+      <div class="skeleton skeleton-line"></div>
+    </div>`).join('');
+
+  const erroHTML = (msg, acao = 'tentar-novamente') => `
+    <div class="erro-card">
+      <p>${esc(msg)}</p>
+      <button class="btn btn-sm btn-secondary" type="button" data-acao="${acao}">Tentar novamente</button>
+    </div>`;
 
   function animarAneis(container) {
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -307,18 +318,15 @@
 
   /* ---------------- Views ---------------- */
   let countdownTimer;
+  let adminTimer;
+  let renderId = 0; // ignora respostas de telas que já foram trocadas
 
-  function renderHome() {
+  async function renderHome() {
+    const meu = ++renderId;
     const el = $('#vagasHome');
-    el.innerHTML = vagasHTML();
-    animarAneis(el);
-
-    const esgotado = contagem().every((c) => c.restantes === 0);
     const btn = $('#btnInscrever');
-    btn.textContent = esgotado ? 'Inscrições esgotadas' : 'Fazer inscrição';
-    btn.classList.toggle('disabled', esgotado);
 
-    const pendente = db.all().filter((i) => i.status === 'pendente').pop();
+    const pendente = minhas.all().filter((i) => i.status === 'pendente').pop();
     const banner = $('#pendingBanner');
     banner.hidden = !pendente;
     if (pendente) {
@@ -338,6 +346,20 @@
     tick();
     clearInterval(countdownTimer);
     countdownTimer = setInterval(tick, 30000);
+
+    if (!vagasCache) el.innerHTML = vagasSkeleton();
+    try {
+      const categorias = await carregarVagas();
+      if (meu !== renderId) return;
+      el.innerHTML = vagasHTML(categorias);
+      animarAneis(el);
+      const esgotado = categorias.every((c) => c.restantes === 0);
+      btn.textContent = esgotado ? 'Inscrições esgotadas' : 'Fazer inscrição';
+      btn.classList.toggle('disabled', esgotado);
+    } catch (e) {
+      if (meu !== renderId) return;
+      el.innerHTML = erroHTML('Não foi possível carregar as vagas. ' + e.message);
+    }
   }
 
   function renderForm() {
@@ -346,16 +368,41 @@
     $$('.field', form).forEach((f) => f.classList.remove('invalid', 'valid'));
     $$('.field-error', form).forEach((e) => { e.textContent = ''; });
     $('#categoriaPreview').hidden = true;
-
-    const hoje = new Date();
-    $('#fNascimento').max = hoje.toISOString().slice(0, 10);
+    $('#fNascimento').max = new Date().toISOString().slice(0, 10);
     $('#fNascimento').min = '2012-10-11';
+    carregarVagas().then(atualizarCategoria).catch(() => { /* a prévia apenas não mostra as vagas */ });
   }
 
-  function renderPagamento(id) {
-    const i = db.find(id);
-    if (!i) { location.hash = '#/'; return; }
-    if (i.status === 'confirmada') { location.hash = '#/sucesso/' + i.id; return; }
+  async function obterInscricao(id) {
+    try {
+      const { inscricao } = await api.buscar(id);
+      minhas.salvar(inscricao);
+      return inscricao;
+    } catch (e) {
+      if (e.status === 404) {
+        minhas.remover(id);
+        toast('Inscrição não encontrada.', true);
+      } else {
+        toast(e.message, true);
+      }
+      location.hash = '#/';
+      return null;
+    }
+  }
+
+  async function renderPagamento(id) {
+    const meu = ++renderId;
+    const secao = $('[data-view="pagamento"]');
+    secao.classList.add('is-loading');
+    $('#qrCode').innerHTML = '<div class="skeleton" style="width:100%;height:100%"></div>';
+    $('#pixCopiaCola').textContent = '';
+    $('#payResumo').innerHTML = '';
+    $('#payCodigo').textContent = '';
+
+    const i = await obterInscricao(id);
+    if (!i || meu !== renderId) return;
+    if (i.status === 'confirmada') { location.replace('#/sucesso/' + i.id); return; }
+    secao.classList.remove('is-loading');
 
     $('#payCodigo').textContent = 'Inscrição ' + codigo(i);
     const payload = Pix.gerarPix({
@@ -381,33 +428,60 @@
     $('#payResumo').innerHTML = resumoHTML(i);
 
     const wpp = $('#btnWhatsapp');
-    wpp.href = linkWhatsapp(i);
-    wpp.onclick = (ev) => {
-      const atual = db.find(i.id);
-      if (!atual) { ev.preventDefault(); location.hash = '#/'; return; }
-      const cat = contagem().find((c) => c.id === atual.categoria);
-      if (atual.status !== 'confirmada' && cat.restantes === 0) {
-        ev.preventDefault();
-        toast(`As vagas de ${cat.nome} acabaram.`, true);
-        return;
+    const link = linkWhatsapp(i);
+    wpp.href = link;
+    wpp.onclick = async (ev) => {
+      ev.preventDefault();
+      if (wpp.classList.contains('loading')) return;
+      // No computador abre o WhatsApp em outra aba (aberta já no clique para não ser bloqueada)
+      const computador = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      const aba = computador ? window.open('', '_blank') : null;
+      carregando(wpp, true, 'Garantindo sua vaga...');
+      try {
+        const { inscricao } = await api.confirmar(i.id);
+        minhas.salvar(inscricao);
+        history.replaceState(null, '', '#/sucesso/' + i.id);
+        if (aba) {
+          aba.opener = null;
+          aba.location.href = link;
+          render();
+        } else {
+          location.href = link;
+          setTimeout(render, 800);
+        }
+      } catch (e) {
+        if (aba) aba.close();
+        toast(e.message, true);
+        if (e.status === 404) { minhas.remover(i.id); location.hash = '#/'; }
+      } finally {
+        carregando(wpp, false);
       }
-      // A vaga é contabilizada no momento em que o responsável vai para o WhatsApp
-      db.update(atual.id, { status: 'confirmada', confirmadaEm: new Date().toISOString() });
-      setTimeout(() => { location.hash = '#/sucesso/' + atual.id; }, 300);
     };
 
-    $('#btnCancelar').onclick = () => {
-      if (confirm('Cancelar esta inscrição? Os dados serão apagados.')) {
-        db.remove(i.id);
+    $('#btnCancelar').onclick = async () => {
+      if (!confirm('Cancelar esta inscrição? Os dados serão apagados.')) return;
+      const b = $('#btnCancelar');
+      carregando(b, true, 'Cancelando...');
+      try {
+        await api.cancelar(i.id);
+        minhas.remover(i.id);
         toast('Inscrição cancelada.');
         location.hash = '#/';
+      } catch (e) {
+        toast(e.message, true);
+      } finally {
+        carregando(b, false);
       }
     };
   }
 
-  function renderSucesso(id) {
-    const i = db.find(id);
-    if (!i) { location.hash = '#/'; return; }
+  async function renderSucesso(id) {
+    const meu = ++renderId;
+    $('#sucessoResumo').innerHTML = '<div class="row"><div class="skeleton skeleton-line"></div></div>';
+    $('#sucessoTexto').textContent = '';
+    const i = await obterInscricao(id);
+    if (!i || meu !== renderId) return;
+    if (i.status !== 'confirmada') { location.replace('#/pagamento/' + i.id); return; }
     $('#sucessoTexto').textContent =
       `A vaga de ${i.crianca.split(' ')[0]} está garantida. Não esqueça de anexar o comprovante do Pix na conversa do WhatsApp.`;
     $('#sucessoResumo').innerHTML =
@@ -416,25 +490,70 @@
   }
 
   /* ---------------- Admin ---------------- */
-  const isAdmin = () => { try { return sessionStorage.getItem(KEY_ADMIN) === '1'; } catch (e) { return false; } };
+  const temSessao = () => !!local.get(KEY_TOKEN, null, sessionStorage);
   const POR_PAGINA = 50;
   let filtro = 'todas';
   let limiteLista = POR_PAGINA;
+  let adminDados = [];
+
+  function sairAdmin(msg) {
+    local.remove(KEY_TOKEN, sessionStorage);
+    clearInterval(adminTimer);
+    adminDados = [];
+    $('#adminLista').innerHTML = '';
+    if (msg) toast(msg, true);
+    render();
+  }
+
+  async function carregarAdmin(silencioso = false) {
+    const btn = $('#btnAtualizar');
+    if (!silencioso) carregando(btn, true);
+    try {
+      const { inscricoes } = await api.admin('listar');
+      adminDados = inscricoes;
+      if (rotaAtual() === 'admin') desenharAdmin();
+    } catch (e) {
+      if (e.status === 401) return sairAdmin(e.message);
+      if (!silencioso) toast(e.message, true);
+      if (!adminDados.length) $('#adminLista').innerHTML = erroHTML(e.message, 'recarregar-admin');
+    } finally {
+      if (!silencioso) carregando(btn, false);
+    }
+  }
 
   function renderAdmin() {
-    const lista = db.all();
-    const confirmadas = lista.filter((i) => i.status === 'confirmada');
-    const pendentes = lista.length - confirmadas.length;
+    if (!adminDados.length) {
+      $('#adminStats').innerHTML = '<div class="stat"><div class="skeleton skeleton-line"></div></div>'.repeat(3);
+      $('#vagasAdmin').innerHTML = vagasSkeleton();
+      $('#adminLista').innerHTML = '';
+    } else {
+      desenharAdmin();
+    }
+    carregarAdmin();
+    clearInterval(adminTimer);
+    adminTimer = setInterval(() => {
+      if (rotaAtual() === 'admin' && !document.hidden) carregarAdmin(true);
+    }, 30000);
+  }
+
+  function desenharAdmin() {
+    const soma = {};
+    let confirmadas = 0;
+    for (const i of adminDados) {
+      const s = soma[i.categoria] || (soma[i.categoria] = { id: i.categoria, confirmadas: 0, pendentes: 0 });
+      if (i.status === 'confirmada') { s.confirmadas++; confirmadas++; } else s.pendentes++;
+    }
+    const pendentes = adminDados.length - confirmadas;
 
     $('#adminStats').innerHTML = `
-      <div class="stat"><b>${confirmadas.length}</b><span>Confirmadas</span></div>
+      <div class="stat"><b>${confirmadas}</b><span>Confirmadas</span></div>
       <div class="stat"><b>${pendentes}</b><span>Pendentes</span></div>
-      <div class="stat money"><b>${brl(confirmadas.length * CONFIG.valor)}</b><span>Arrecadação</span></div>`;
+      <div class="stat money"><b>${brl(confirmadas * CONFIG.valor)}</b><span>Arrecadação</span></div>`;
 
     const v = $('#vagasAdmin');
-    v.innerHTML = vagasHTML(true);
+    v.innerHTML = vagasHTML(Object.values(soma), true);
     animarAneis(v);
-    $('#adminUpdated').textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' · dados deste aparelho';
+    $('#adminUpdated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     renderLista();
   }
 
@@ -444,7 +563,7 @@
     // Só dígitos (ou "#12"): até 4 dígitos procura o nº da inscrição, acima disso o telefone
     const numerica = dig && !/[a-z]/.test(busca);
     const porNumero = numerica && (dig.length <= 4 || busca.startsWith('#'));
-    let lista = db.all().slice().reverse();
+    let lista = adminDados.slice().sort((a, b) => b.numero - a.numero);
 
     if (filtro === 'pendente') lista = lista.filter((i) => i.status === 'pendente');
     else if (filtro !== 'todas') lista = lista.filter((i) => i.categoria === filtro);
@@ -478,7 +597,7 @@
       const ok = i.status === 'confirmada';
       const tel = soDigitos(i.telefone);
       return `
-        <details class="item" data-id="${i.id}"${abertos.has(i.id) ? ' open' : ''}>
+        <details class="item" data-id="${esc(i.id)}"${abertos.has(i.id) ? ' open' : ''}>
           <summary>
             <div class="avatar ${i.categoria === 'B' ? 'b' : ''}">${esc(iniciais(i.crianca))}</div>
             <div class="item-main">
@@ -506,10 +625,9 @@
   }
 
   function exportarCSV() {
-    const lista = db.all();
-    if (!lista.length) { toast('Nenhuma inscrição para exportar.', true); return; }
+    if (!adminDados.length) { toast('Nenhuma inscrição para exportar.', true); return; }
     const cab = ['Nº', 'Criança', 'Nascimento', 'Idade na corrida', 'Categoria', 'Responsável', 'Telefone', 'Status', 'Cadastro', 'Confirmação'];
-    const linhas = lista.map((i) => [
+    const linhas = adminDados.slice().sort((a, b) => a.numero - b.numero).map((i) => [
       pad(i.numero), i.crianca, formatarData(i.nascimento), i.idade,
       (categoriaPorId(i.categoria) || {}).nome || '', i.responsavel, formatarTelefone(i.telefone),
       i.status, formatarDataHora(i.criadaEm), i.confirmadaEm ? formatarDataHora(i.confirmadaEm) : '',
@@ -517,7 +635,7 @@
     const csv = [cab, ...linhas]
       .map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';'))
       .join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `inscricoes-corrida-kids-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -545,12 +663,15 @@
     const prev = $('#categoriaPreview');
     if (validarNascimento(valor)) { prev.hidden = true; return; }
     const idade = idadeNaCorrida(valor);
-    const cat = contagem().find((c) => c.id === categoriaDaIdade(idade).id);
+    const cat = categoriaDaIdade(idade);
+    const vaga = vagaDe(cat.id);
+    const esgotada = vaga && vaga.restantes === 0;
     prev.hidden = false;
-    prev.classList.toggle('full', cat.restantes === 0);
-    prev.innerHTML = cat.restantes === 0
+    prev.classList.toggle('full', !!esgotada);
+    prev.innerHTML = esgotada
       ? `Categoria ${cat.nome} esgotada <span class="badge badge-full">0 vagas</span>`
-      : `${idade} anos na corrida · Categoria ${cat.nome} <span class="badge badge-blue">${cat.restantes} vagas</span>`;
+      : `${idade} anos na corrida · Categoria ${cat.nome}` +
+        (vaga ? ` <span class="badge badge-blue">${vaga.restantes} vagas</span>` : '');
   }
 
   function validarCampo(nome) {
@@ -591,8 +712,11 @@
     $('#fNascimento').addEventListener('change', () => validarCampo('nascimento'));
     $('#fTermo').addEventListener('change', (e) => { if (e.target.checked) $('[data-error="termo"]').textContent = ''; });
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const btn = $('#btnSubmit');
+      if (btn.classList.contains('loading')) return;
+
       const ok = ['crianca', 'nascimento', 'responsavel', 'telefone'].map(validarCampo).every(Boolean);
       const termo = $('#fTermo').checked;
       $('[data-error="termo"]').textContent = termo ? '' : 'Confirme a autorização para continuar.';
@@ -605,57 +729,67 @@
         return;
       }
 
-      const crianca = capitalizarNome(normalizarNome(form.crianca.value));
-      const responsavel = capitalizarNome(normalizarNome(form.responsavel.value));
-      const nascimento = form.nascimento.value;
-      const telefone = soDigitos(form.telefone.value);
-      const idade = idadeNaCorrida(nascimento);
-      const cat = contagem().find((c) => c.id === categoriaDaIdade(idade).id);
-
-      if (cat.restantes === 0) {
-        setErro('nascimento', `As vagas da categoria ${cat.nome} estão esgotadas.`);
-        toast('Categoria esgotada.', true);
-        return;
-      }
-
-      const duplicada = db.all().find((i) =>
-        semAcento(i.crianca) === semAcento(crianca) && i.nascimento === nascimento);
-      if (duplicada) {
-        if (duplicada.status === 'pendente') {
-          toast('Essa criança já tem uma inscrição pendente.');
-          location.hash = '#/pagamento/' + duplicada.id;
+      carregando(btn, true, 'Enviando...');
+      try {
+        const { inscricao } = await api.criar({
+          crianca: form.crianca.value,
+          responsavel: form.responsavel.value,
+          nascimento: form.nascimento.value,
+          telefone: form.telefone.value,
+          termo: true,
+        });
+        minhas.salvar(inscricao);
+        location.hash = '#/pagamento/' + inscricao.id;
+      } catch (err) {
+        const d = err.dados || {};
+        Object.entries(d.erros || {}).forEach(([campo, msg]) => {
+          if (campo === 'termo') $('[data-error="termo"]').textContent = msg;
+          else setErro(campo, msg);
+        });
+        if (d.motivo === 'duplicada' && d.inscricao) {
+          toast('Essa criança já tem uma inscrição aguardando pagamento.');
+          location.hash = '#/pagamento/' + d.inscricao.id;
         } else {
-          setErro('crianca', `Já existe uma inscrição confirmada para ${crianca} (${codigo(duplicada)}).`);
-          toast('Inscrição já realizada.', true);
+          if (d.motivo === 'esgotada') carregarVagas().then(atualizarCategoria).catch(() => {});
+          toast(err.message, true);
         }
-        return;
+      } finally {
+        carregando(btn, false);
       }
-
-      const item = db.add({ crianca, responsavel, telefone, nascimento, idade, categoria: cat.id });
-      if (item) location.hash = '#/pagamento/' + item.id;
     });
   }
 
   function ligarAdmin() {
-    $('#formLogin').addEventListener('submit', (e) => {
+    $('#formLogin').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const u = $('#lUser').value.trim();
-      const s = $('#lPass').value;
-      if (u === CONFIG.admin.usuario && s === CONFIG.admin.senha) {
-        try { sessionStorage.setItem(KEY_ADMIN, '1'); } catch (_) { /* ignora */ }
-        $('#loginError').textContent = '';
+      const btn = $('#formLogin button[type="submit"]');
+      if (btn.classList.contains('loading')) return;
+      $('#loginError').textContent = '';
+      carregando(btn, true, 'Entrando...');
+      try {
+        const { token } = await chamar('/api/admin', {
+          metodo: 'POST',
+          corpo: { acao: 'login', usuario: $('#lUser').value.trim(), senha: $('#lPass').value },
+        });
+        local.set(KEY_TOKEN, token, sessionStorage);
         $('#lPass').value = '';
         render();
-      } else {
-        $('#loginError').textContent = 'Usuário ou senha incorretos.';
+      } catch (err) {
+        $('#loginError').textContent = err.message;
         if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+      } finally {
+        carregando(btn, false);
       }
     });
 
     $('#btnSair').addEventListener('click', () => {
-      try { sessionStorage.removeItem(KEY_ADMIN); } catch (_) { /* ignora */ }
+      local.remove(KEY_TOKEN, sessionStorage);
+      clearInterval(adminTimer);
+      adminDados = [];
       location.hash = '#/';
     });
+
+    $('#btnAtualizar').addEventListener('click', () => carregarAdmin());
 
     let buscaTimer;
     $('#adminBusca').addEventListener('input', () => {
@@ -672,34 +806,38 @@
       renderLista();
     });
 
-    $('#adminLista').addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-act]');
+    $('#adminLista').addEventListener('click', async (e) => {
+      const b = e.target.closest('button[data-act], button[data-acao]');
       if (!b) return;
+      if (b.dataset.acao === 'recarregar-admin') return carregarAdmin();
       if (b.dataset.act === 'mais') {
         limiteLista += POR_PAGINA;
         renderLista();
         return;
       }
       const id = b.closest('.item').dataset.id;
-      const i = db.find(id);
-      if (!i) return;
-      if (b.dataset.act === 'excluir') {
-        if (confirm(`Excluir a inscrição de ${i.crianca}?`)) {
-          db.remove(id);
+      const i = adminDados.find((x) => x.id === id);
+      if (!i || b.classList.contains('loading')) return;
+
+      try {
+        if (b.dataset.act === 'excluir') {
+          if (!confirm(`Excluir a inscrição de ${i.crianca}?`)) return;
+          carregando(b, true, '...');
+          await api.admin('excluir', { id });
+          adminDados = adminDados.filter((x) => x.id !== id);
           toast('Inscrição excluída.');
-          renderAdmin();
+        } else if (b.dataset.act === 'status') {
+          carregando(b, true, '...');
+          const novo = i.status === 'confirmada' ? 'pendente' : 'confirmada';
+          const { inscricao } = await api.admin('status', { id, status: novo });
+          adminDados = adminDados.map((x) => (x.id === id ? inscricao : x));
+          toast(novo === 'confirmada' ? 'Vaga confirmada.' : 'Marcada como pendente.');
         }
-      } else if (b.dataset.act === 'status') {
-        if (i.status === 'confirmada') {
-          db.update(id, { status: 'pendente', confirmadaEm: null });
-          toast('Marcada como pendente.');
-        } else {
-          const cat = contagem().find((c) => c.id === i.categoria);
-          if (cat.restantes === 0) { toast('Categoria sem vagas.', true); return; }
-          db.update(id, { status: 'confirmada', confirmadaEm: new Date().toISOString() });
-          toast('Vaga confirmada.');
-        }
-        renderAdmin();
+        desenharAdmin();
+      } catch (err) {
+        if (err.status === 401) return sairAdmin(err.message);
+        toast(err.message, true);
+        carregando(b, false);
       }
     });
 
@@ -724,17 +862,24 @@
   function render() {
     const [, rota = '', param] = location.hash.split('/');
     clearInterval(countdownTimer);
+    if (rota !== 'admin') clearInterval(adminTimer);
 
     switch (rota) {
       case 'inscricao':
-        if (contagem().every((c) => c.restantes === 0)) { toast('Inscrições esgotadas.', true); location.hash = '#/'; return; }
+        if (vagasCache && vagasCache.every((c) => c.restantes === 0)) {
+          toast('Inscrições esgotadas.', true);
+          location.hash = '#/';
+          return;
+        }
+        renderId++;
         renderForm(); mostrar('inscricao'); break;
       case 'pagamento':
         mostrar('pagamento'); renderPagamento(param); break;
       case 'sucesso':
         mostrar('sucesso'); renderSucesso(param); break;
       case 'admin':
-        if (isAdmin()) { mostrar('admin'); renderAdmin(); }
+        renderId++;
+        if (temSessao()) { mostrar('admin'); renderAdmin(); }
         else { mostrar('login'); setTimeout(() => $('#lUser').focus(), 50); }
         break;
       default:
@@ -748,10 +893,12 @@
 
   $('#btnBack').addEventListener('click', () => { location.hash = '#/'; });
   $('#btnCopiaChave').addEventListener('click', () => copiar(CONFIG.pix.chave, 'Chave Pix copiada!'));
+  $('#vagasHome').addEventListener('click', (e) => { if (e.target.closest('[data-acao]')) renderHome(); });
   window.addEventListener('scroll', atualizarTopbar, { passive: true });
   window.addEventListener('hashchange', render);
-  window.addEventListener('storage', (e) => {
-    if (e.key === KEY_DADOS || e.key === null) { db.invalidar(); render(); }
+  // Ao voltar para a aba, atualiza as vagas da tela inicial
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && rotaAtual() === '') renderHome();
   });
 
   ligarFormulario();

@@ -1,0 +1,12 @@
+{
+  "name": "cadastro-corrida-kids",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Inscrições da 2ª Corrida Kids do Nonatão",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

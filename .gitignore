@@ -1,4 +1,7 @@
 .claude/
 node_modules/
+data/
+.env*
+.vercel
 .DS_Store
 Thumbs.db
