@@ -6,8 +6,10 @@
 //   ck:seq             número sequencial das inscrições
 const crypto = require('crypto');
 
-const URL_BASE = (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/$/, '');
-const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const ambiente = require('./ambiente');
+
+const URL_BASE = ambiente.redisUrl.replace(/\/$/, '');
+const TOKEN = ambiente.redisToken;
 const P = process.env.DB_PREFIXO || 'ck:';
 
 const K = {

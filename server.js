@@ -13,6 +13,7 @@ const rotas = {
   '/api/confirmar': require('./api/confirmar'),
   '/api/cancelar': require('./api/cancelar'),
   '/api/admin': require('./api/admin'),
+  '/api/status': require('./api/status'),
 };
 
 const TIPOS = {

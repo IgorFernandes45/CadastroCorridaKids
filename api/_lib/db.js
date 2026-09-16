@@ -1,6 +1,7 @@
 // Escolhe o banco: Redis quando configurado (Vercel), senão o arquivo data/inscricoes.txt
-const temRedis = !!((process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL) &&
-  (process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN));
+const ambiente = require('./ambiente');
+
+const temRedis = !!(ambiente.redisUrl && ambiente.redisToken);
 
 function semBanco() {
   // Na Vercel o disco é somente leitura: sem Redis não há onde gravar
