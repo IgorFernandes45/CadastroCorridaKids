@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#36509B">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="description" content="Inscrições para a 2ª Corrida Kids do Nonatão – 10/10/2026, Loja Nonatão 2, Uiraúna-PB.">
+  <title>Corrida Kids Nonatão</title>
+  <link rel="icon" type="image/png" href="assets/selo.png">
+  <link rel="apple-touch-icon" href="assets/selo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Barra superior (estilo iOS) -->
+  <header class="topbar" id="topbar">
+    <button class="topbar-back" id="btnBack" type="button" aria-label="Voltar" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Voltar</span>
+    </button>
+    <div class="topbar-title" id="topbarTitle">Corrida Kids</div>
+    <div class="topbar-right" id="topbarRight"></div>
+  </header>
+
+  <main id="app">
+
+    <!-- ============ HOME ============ -->
+    <section class="view" data-view="home">
+      <div class="hero">
+        <div class="hero-glow"></div>
+        <img class="hero-selo" src="assets/selo.png" alt="2ª Corrida Kids do Nonatão">
+        <p class="hero-eyebrow">Inscrições abertas</p>
+        <h1 class="hero-title">2ª Corrida Kids<br>do Nonatão</h1>
+        <div class="hero-chips">
+          <span class="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>10/10/2026</span>
+          <span class="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>17h</span>
+          <span class="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>Loja Nonatão 2</span>
+        </div>
+        <div class="countdown" id="countdown"></div>
+      </div>
+
+      <div class="pending-banner" id="pendingBanner" hidden>
+        <div>
+          <strong>Pagamento pendente</strong>
+          <span id="pendingText">Você tem uma inscrição aguardando o comprovante.</span>
+        </div>
+        <button class="btn btn-sm btn-red" id="btnPending" type="button">Continuar</button>
+      </div>
+
+      <h2 class="section-title">Vagas disponíveis</h2>
+      <div class="vagas" id="vagasHome"></div>
+
+      <div class="card price-card">
+        <div>
+          <span class="muted small">Valor da inscrição</span>
+          <div class="price">R$ 15<span>,00</span></div>
+        </div>
+        <div class="price-pix">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l4.2 4.2-4.2 4.2-4.2-4.2zM12 13.1l4.2 4.2-4.2 4.2-4.2-4.2zM2.5 12l4.2-4.2 4.2 4.2-4.2 4.2zM13.1 12l4.2-4.2 4.2 4.2-4.2 4.2z"/></svg>
+          Pagamento via Pix
+        </div>
+      </div>
+
+      <h2 class="section-title">Como funciona</h2>
+      <ol class="card steps">
+        <li><span class="step-n">1</span><div><strong>Preencha o cadastro</strong><span>Dados da criança e do responsável.</span></div></li>
+        <li><span class="step-n">2</span><div><strong>Pague com Pix</strong><span>QR Code ou Pix Copia e Cola.</span></div></li>
+        <li><span class="step-n">3</span><div><strong>Envie o comprovante</strong><span>Pelo WhatsApp. A vaga só fica garantida depois disso.</span></div></li>
+      </ol>
+
+      <footer class="footer">
+        <img src="assets/logo.png" alt="Nonatão Supermercados" class="footer-logo">
+        <a class="insta" href="https://www.instagram.com/nonatao_redesuperlegal/" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+          @nonatao_redesuperlegal
+        </a>
+        <p class="muted small">Loja Nonatão 2 · Uiraúna-PB</p>
+        <a href="#/admin" class="admin-link">Área do organizador</a>
+      </footer>
+
+      <div class="sticky-cta">
+        <a href="#/inscricao" class="btn btn-primary btn-block" id="btnInscrever">Fazer inscrição</a>
+      </div>
+    </section>
+
+    <!-- ============ FORMULÁRIO ============ -->
+    <section class="view" data-view="inscricao">
+      <div class="page-head">
+        <h1 class="large-title">Inscrição</h1>
+        <p class="muted">Preencha os dados abaixo. Todos os campos são obrigatórios.</p>
+      </div>
+
+      <form id="formInscricao" novalidate autocomplete="on">
+        <p class="group-label">Criança</p>
+        <div class="group">
+          <label class="field">
+            <span class="field-label">Nome completo da criança</span>
+            <input type="text" name="crianca" id="fCrianca" placeholder="Ex.: Maria Clara Souza" autocomplete="off" autocapitalize="words" maxlength="80" enterkeyhint="next">
+          </label>
+          <label class="field">
+            <span class="field-label">Data de nascimento</span>
+            <input type="date" name="nascimento" id="fNascimento">
+          </label>
+        </div>
+        <p class="field-error" data-error="crianca"></p>
+        <p class="field-error" data-error="nascimento"></p>
+        <div class="categoria-preview" id="categoriaPreview" hidden></div>
+
+        <p class="group-label">Responsável</p>
+        <div class="group">
+          <label class="field">
+            <span class="field-label">Nome completo do responsável</span>
+            <input type="text" name="responsavel" id="fResponsavel" placeholder="Ex.: João da Silva" autocomplete="name" autocapitalize="words" maxlength="80" enterkeyhint="next">
+          </label>
+          <label class="field">
+            <span class="field-label">Telefone / WhatsApp</span>
+            <input type="tel" name="telefone" id="fTelefone" placeholder="(83) 99999-9999" autocomplete="tel-national" inputmode="numeric" maxlength="15" enterkeyhint="done">
+          </label>
+        </div>
+        <p class="field-error" data-error="responsavel"></p>
+        <p class="field-error" data-error="telefone"></p>
+
+        <label class="check">
+          <input type="checkbox" id="fTermo">
+          <span class="check-box" aria-hidden="true"></span>
+          <span>Autorizo a participação da criança e confirmo que os dados estão corretos.</span>
+        </label>
+        <p class="field-error" data-error="termo"></p>
+
+        <div class="sticky-cta">
+          <button type="submit" class="btn btn-primary btn-block" id="btnSubmit">Continuar para pagamento</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ============ PAGAMENTO ============ -->
+    <section class="view" data-view="pagamento">
+      <div class="page-head">
+        <p class="eyebrow" id="payCodigo"></p>
+        <h1 class="large-title">Pagamento</h1>
+        <p class="muted">Pague com Pix e envie o comprovante para garantir a vaga.</p>
+      </div>
+
+      <div class="card pay-card">
+        <div class="pay-amount">
+          <span class="muted small">Total</span>
+          <strong>R$ 15,00</strong>
+        </div>
+        <div class="qr-wrap">
+          <div class="qr" id="qrCode" role="img" aria-label="QR Code Pix"></div>
+        </div>
+        <p class="muted small center">Abra o app do seu banco e escaneie o QR Code, ou copie o código abaixo.</p>
+
+        <div class="copy-box">
+          <span class="copy-label">Pix Copia e Cola</span>
+          <code id="pixCopiaCola"></code>
+          <button class="btn btn-primary btn-block" type="button" id="btnCopiaCola">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+            Copiar código Pix
+          </button>
+        </div>
+      </div>
+
+      <p class="group-label">Dados do recebedor</p>
+      <div class="group">
+        <div class="row">
+          <span class="row-label">Chave Pix (CPF)</span>
+          <span class="row-value mono">075.190.044-30</span>
+          <button class="icon-btn" type="button" id="btnCopiaChave" aria-label="Copiar chave Pix">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+          </button>
+        </div>
+        <div class="row"><span class="row-label">Nome</span><span class="row-value">Ângela Ferreira</span></div>
+        <div class="row"><span class="row-label">Valor</span><span class="row-value">R$ 15,00</span></div>
+      </div>
+
+      <p class="group-label">Resumo da inscrição</p>
+      <div class="group" id="payResumo"></div>
+
+      <div class="notice">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.5"/></svg>
+        <p>Depois de pagar, toque no botão abaixo. Seus dados já vão prontos na mensagem, é só <strong>anexar o comprovante</strong> e enviar para <strong>(83) 99672-4918</strong>.</p>
+      </div>
+
+      <div class="sticky-cta">
+        <a class="btn btn-whatsapp btn-block" id="btnWhatsapp" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3a.4.4 0 0 0 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 2.9 2.9 0 0 0-.9 2.2 5 5 0 0 0 1.1 2.7 11.4 11.4 0 0 0 4.4 3.9c1.6.7 2.3.8 3.1.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.3c0-.1-.2-.2-.4-.3z"/></svg>
+          Enviar comprovante no WhatsApp
+        </a>
+        <button class="btn-link danger" type="button" id="btnCancelar">Cancelar esta inscrição</button>
+      </div>
+    </section>
+
+    <!-- ============ SUCESSO ============ -->
+    <section class="view" data-view="sucesso">
+      <div class="success">
+        <div class="success-icon">
+          <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>
+        </div>
+        <h1 class="large-title center">Inscrição enviada!</h1>
+        <p class="muted center" id="sucessoTexto"></p>
+        <div class="group" id="sucessoResumo"></div>
+        <div class="card event-card">
+          <img src="assets/selo.png" alt="" class="event-selo">
+          <div>
+            <strong>Nos vemos na largada!</strong>
+            <span>10 de outubro de 2026 · 17h</span>
+            <span>Loja Nonatão 2 · Uiraúna-PB</span>
+          </div>
+        </div>
+        <a class="btn btn-secondary btn-block" id="btnReabrirWpp" href="#" target="_blank" rel="noopener">Abrir o WhatsApp de novo</a>
+        <a class="btn btn-primary btn-block" href="#/inscricao">Inscrever outra criança</a>
+        <a class="btn-link" href="#/">Voltar ao início</a>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN LOGIN ============ -->
+    <section class="view" data-view="login">
+      <div class="login">
+        <img src="assets/logo.png" alt="Nonatão" class="login-logo">
+        <h1 class="large-title center">Organizador</h1>
+        <p class="muted center">Entre para acompanhar as inscrições.</p>
+        <form id="formLogin" novalidate>
+          <div class="group">
+            <label class="field">
+              <span class="field-label">Usuário</span>
+              <input type="text" id="lUser" autocomplete="username" autocapitalize="none" spellcheck="false">
+            </label>
+            <label class="field">
+              <span class="field-label">Senha</span>
+              <input type="password" id="lPass" autocomplete="current-password">
+            </label>
+          </div>
+          <p class="field-error center" id="loginError"></p>
+          <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN PAINEL ============ -->
+    <section class="view" data-view="admin">
+      <div class="page-head">
+        <h1 class="large-title">Inscrições</h1>
+        <p class="muted small" id="adminUpdated"></p>
+      </div>
+
+      <div class="stats" id="adminStats"></div>
+      <div class="vagas" id="vagasAdmin"></div>
+
+      <div class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="adminBusca" placeholder="Buscar por nome, telefone ou nº">
+      </div>
+
+      <div class="segmented" id="adminFiltro" role="tablist">
+        <button type="button" data-f="todas" class="active">Todas</button>
+        <button type="button" data-f="A">3–5</button>
+        <button type="button" data-f="B">6–13</button>
+        <button type="button" data-f="pendente">Pendentes</button>
+      </div>
+
+      <div id="adminLista" class="lista"></div>
+
+      <div class="admin-actions">
+        <button class="btn btn-secondary btn-block" type="button" id="btnExportar">Exportar planilha (CSV)</button>
+        <button class="btn-link danger" type="button" id="btnSair">Sair</button>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="js/pix.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
