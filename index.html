@@ -19,6 +19,9 @@
 
   <!-- Barra superior (estilo iOS) -->
   <header class="topbar" id="topbar">
+    <a class="topbar-brand" href="#/" aria-label="Início">
+      <img src="assets/logo.png" alt="Nonatão Supermercados">
+    </a>
     <button class="topbar-back" id="btnBack" type="button" aria-label="Voltar" hidden>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>Voltar</span>
@@ -31,6 +34,8 @@
 
     <!-- ============ HOME ============ -->
     <section class="view" data-view="home">
+      <div class="home-grid">
+      <div class="home-left">
       <div class="hero">
         <div class="hero-glow"></div>
         <img class="hero-selo" src="assets/selo.png" alt="2ª Corrida Kids do Nonatão">
@@ -43,6 +48,9 @@
         </div>
         <div class="countdown" id="countdown"></div>
       </div>
+      </div>
+
+      <div class="home-right">
 
       <div class="pending-banner" id="pendingBanner" hidden>
         <div>
@@ -73,6 +81,10 @@
         <li><span class="step-n">3</span><div><strong>Envie o comprovante</strong><span>Pelo WhatsApp. A vaga só fica garantida depois disso.</span></div></li>
       </ol>
 
+      <div class="sticky-cta">
+        <a href="#/inscricao" class="btn btn-primary btn-block" id="btnInscrever">Fazer inscrição</a>
+      </div>
+
       <footer class="footer">
         <img src="assets/logo.png" alt="Nonatão Supermercados" class="footer-logo">
         <a class="insta" href="https://www.instagram.com/nonatao_redesuperlegal/" target="_blank" rel="noopener">
@@ -82,10 +94,9 @@
         <p class="muted small">Loja Nonatão 2 · Uiraúna-PB</p>
         <a href="#/admin" class="admin-link">Área do organizador</a>
       </footer>
-
-      <div class="sticky-cta">
-        <a href="#/inscricao" class="btn btn-primary btn-block" id="btnInscrever">Fazer inscrição</a>
       </div>
+      </div>
+
     </section>
 
     <!-- ============ FORMULÁRIO ============ -->
@@ -146,6 +157,8 @@
         <p class="muted">Pague com Pix e envie o comprovante para garantir a vaga.</p>
       </div>
 
+      <div class="pay-grid">
+      <div class="pay-left">
       <div class="card pay-card">
         <div class="pay-amount">
           <span class="muted small">Total</span>
@@ -166,7 +179,10 @@
         </div>
       </div>
 
-      <p class="group-label">Dados do recebedor</p>
+      </div>
+
+      <div class="pay-right">
+      <p class="group-label first">Dados do recebedor</p>
       <div class="group">
         <div class="row">
           <span class="row-label">Chave Pix (CPF)</span>
@@ -193,6 +209,8 @@
           Enviar comprovante no WhatsApp
         </a>
         <button class="btn-link danger" type="button" id="btnCancelar">Cancelar esta inscrição</button>
+      </div>
+      </div>
       </div>
     </section>
 
@@ -249,9 +267,12 @@
         <p class="muted small" id="adminUpdated"></p>
       </div>
 
-      <div class="stats" id="adminStats"></div>
-      <div class="vagas" id="vagasAdmin"></div>
+      <div class="admin-top">
+        <div class="stats" id="adminStats"></div>
+        <div class="vagas" id="vagasAdmin"></div>
+      </div>
 
+      <div class="admin-tools">
       <div class="search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input type="search" id="adminBusca" placeholder="Buscar por nome, telefone ou nº">
@@ -262,6 +283,7 @@
         <button type="button" data-f="A">3–5</button>
         <button type="button" data-f="B">6–13</button>
         <button type="button" data-f="pendente">Pendentes</button>
+      </div>
       </div>
 
       <div id="adminLista" class="lista"></div>

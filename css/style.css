@@ -522,6 +522,112 @@ main { max-width: 560px; margin: 0 auto; padding: 0 var(--gutter); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { background: var(--red); }
 
+/* ---------- Lista admin: paginação ---------- */
+.lista-info { margin: 6px 0 0; text-align: center; font-size: 13px; color: var(--text-2); }
+.lista-mais { margin-top: 4px; }
+
+/* ---------- Marca na barra (só telas grandes) ---------- */
+.topbar-brand { display: none; }
+
+/* ==========================================================
+   Telas grandes (tablet / computador)
+   ========================================================== */
+@media (min-width: 768px) {
+  :root { --gutter: 32px; }
+  main { max-width: 640px; }
+  .large-title { font-size: 40px; }
+  .page-head { padding-top: 24px; }
+}
+
+@media (min-width: 960px) {
+  .topbar { padding-left: 24px; padding-right: 24px; min-height: 64px; }
+  .topbar-brand { display: block; justify-self: start; grid-column: 1; grid-row: 1; }
+  .topbar-brand img { height: 38px; width: auto; }
+  .topbar-back { display: none; }
+  .topbar-title { opacity: 1; }
+  @media (prefers-color-scheme: dark) {
+    .topbar-brand img { background: #fff; padding: 4px 8px; border-radius: 10px; }
+  }
+
+  /* Barra de ação fixa vira botão normal dentro do conteúdo */
+  .sticky-cta {
+    position: static; padding: 0; margin-top: 24px;
+    background: none; border: 0;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .sticky-cta > * { max-width: none; }
+  .view, [data-view="pagamento"] { padding-bottom: 64px; }
+  .btn:hover { filter: brightness(1.06); }
+  .btn-link:hover { text-decoration: underline; }
+
+  /* Home: hero fixo à esquerda, conteúdo à direita */
+  body[data-view="home"] main,
+  body[data-view="pagamento"] main,
+  body[data-view="admin"] main { max-width: 1120px; }
+
+  .home-grid {
+    display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 40px; align-items: start; padding-top: 32px;
+  }
+  .home-left { position: sticky; top: 96px; }
+  .hero { margin-top: 0; padding: 44px 36px 36px; border-radius: 36px; }
+  .hero-selo { max-width: 300px; }
+  .hero-title { font-size: 46px; }
+  .home-right .section-title:first-of-type { margin-top: 4px; }
+  .home-right .pending-banner { margin: 0 0 20px; }
+  .home-right .footer { text-align: left; padding-top: 40px; display: grid; grid-template-columns: auto 1fr; gap: 4px 20px; align-items: center; }
+  .home-right .footer-logo { grid-row: span 3; margin: 0; width: 96px; }
+  .home-right .footer p { margin: 0; }
+  .ring { width: 104px; height: 104px; }
+  .ring-num b { font-size: 30px; }
+
+  /* Pagamento em duas colunas */
+  .pay-grid {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 32px; align-items: start;
+  }
+  .pay-left { position: sticky; top: 96px; }
+  .pay-card { padding: 28px; }
+  .qr { width: 260px; height: 260px; }
+  .group-label.first { margin-top: 4px; }
+
+  /* Sucesso / login centralizados em cartão */
+  .success, .login {
+    max-width: 520px; margin: 40px auto 0; padding: 36px;
+    background: var(--surface); border-radius: 28px; box-shadow: var(--shadow);
+  }
+  .success .group, .login .group { background: var(--surface-2); box-shadow: none; }
+
+  /* Admin: painel largo */
+  .admin-top {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 16px; align-items: stretch;
+  }
+  .admin-top .stats { grid-template-columns: 1fr; margin: 0; }
+  .admin-top .stat { flex-direction: row; align-items: baseline; justify-content: space-between; padding: 16px 20px; }
+  .admin-top .stat b { font-size: 30px; order: 2; }
+  .admin-top .stat span { font-size: 15px; }
+  .admin-top .stat.money b { font-size: 26px; line-height: 1.15; }
+  .admin-tools {
+    display: grid; grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 12px; align-items: center; margin-top: 24px;
+  }
+  .admin-tools .search { margin: 0; }
+  .lista {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .lista .empty, .lista-info, .lista-mais { grid-column: 1 / -1; }
+  .lista-mais { max-width: 320px; justify-self: center; }
+  .admin-actions { display: flex; gap: 16px; align-items: center; max-width: 520px; }
+  .admin-actions .btn-link { width: auto; margin: 0; }
+  .item summary:hover { background: var(--surface-2); }
+}
+
+@media (min-width: 1280px) {
+  .lista { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 @media (min-width: 420px) {
   .hero-title { font-size: 36px; }
 }

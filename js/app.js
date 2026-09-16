@@ -20,11 +20,14 @@
     pix: { chave: '07519004430', nome: 'Angela Ferreira', cidade: 'Uirauna' },
     whatsapp: '5583996724918',
     admin: { usuario: 'admin', senha: 'nonatao123' },
+    // Trocar este valor apaga as inscrições salvas nos navegadores (usar só antes de abrir as inscrições)
+    versaoDados: '2026-09-16',
   };
 
   const KEY_DADOS = 'ck_inscricoes';
   const KEY_SEQ = 'ck_seq';
   const KEY_ADMIN = 'ck_admin';
+  const KEY_VERSAO = 'ck_versao';
 
   const DDDS = new Set([
     11,12,13,14,15,16,17,18,19,21,22,24,27,28,31,32,33,34,35,37,38,
@@ -49,12 +52,29 @@
     },
   };
 
+  // Ao mudar CONFIG.versaoDados, as inscrições salvas antes (ex.: testes) são apagadas.
+  try {
+    if (localStorage.getItem(KEY_VERSAO) !== CONFIG.versaoDados) {
+      localStorage.removeItem(KEY_DADOS);
+      localStorage.removeItem(KEY_SEQ);
+      localStorage.setItem(KEY_VERSAO, CONFIG.versaoDados);
+    }
+  } catch (e) { /* armazenamento indisponível */ }
+
+  // Lista mantida em memória para não reler o localStorage a cada consulta
+  let cache = null;
+
   const db = {
-    all: () => store.get(KEY_DADOS, []),
-    save: (lista) => store.set(KEY_DADOS, lista),
+    all: () => (cache || (cache = store.get(KEY_DADOS, []))),
+    save(lista) {
+      if (!store.set(KEY_DADOS, lista)) return false;
+      cache = lista;
+      return true;
+    },
+    invalidar() { cache = null; },
     find: (id) => db.all().find((i) => i.id === id),
     update(id, patch) {
-      const lista = db.all();
+      const lista = db.all().slice();
       const idx = lista.findIndex((i) => i.id === id);
       if (idx < 0) return null;
       lista[idx] = { ...lista[idx], ...patch };
@@ -72,19 +92,20 @@
         criadaEm: new Date().toISOString(),
         confirmadaEm: null,
       };
-      const lista = db.all();
-      lista.push(item);
-      if (!db.save(lista)) return null;
+      if (!db.save([...db.all(), item])) return null;
       store.set(KEY_SEQ, seq);
       return item;
     },
   };
 
   function contagem() {
-    const lista = db.all();
+    const soma = {};
+    for (const i of db.all()) {
+      const s = soma[i.categoria] || (soma[i.categoria] = { confirmadas: 0, pendentes: 0 });
+      if (i.status === 'confirmada') s.confirmadas++; else s.pendentes++;
+    }
     return CONFIG.categorias.map((c) => {
-      const confirmadas = lista.filter((i) => i.categoria === c.id && i.status === 'confirmada').length;
-      const pendentes = lista.filter((i) => i.categoria === c.id && i.status === 'pendente').length;
+      const { confirmadas = 0, pendentes = 0 } = soma[c.id] || {};
       return { ...c, confirmadas, pendentes, restantes: Math.max(0, c.vagas - confirmadas) };
     });
   }
@@ -132,7 +153,9 @@
     return nome
       .toLowerCase()
       .split(' ')
-      .map((p, i) => (i > 0 && minusculas.has(p)) ? p : p.charAt(0).toUpperCase() + p.slice(1))
+      .map((p, i) => (i > 0 && minusculas.has(p))
+        ? p
+        : p.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('-'))
       .join(' ');
   }
   const normalizarNome = (s) => String(s || '').replace(/\s+/g, ' ').trim();
@@ -172,7 +195,9 @@
   }
 
   /* ---------------- Validações ---------------- */
-  const RE_NOME = /^[A-Za-zÀ-ÖØ-öø-ÿ' ]+$/;
+  const RE_NOME = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
+  const RE_NAO_NOME = /[^A-Za-zÀ-ÖØ-öø-ÿ' -]/g;
+  const letras = (p) => p.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '').length;
 
   function validarNome(valor, rotulo) {
     const v = normalizarNome(valor);
@@ -180,7 +205,8 @@
     if (!RE_NOME.test(v)) return 'Use apenas letras, sem números ou símbolos.';
     const partes = v.split(' ');
     if (partes.length < 2) return 'Informe nome e sobrenome.';
-    if (partes.some((p) => p.replace(/'/g, '').length < 1) || partes[0].length < 2) return 'Nome inválido.';
+    if (partes.some((p) => letras(p) < 1 || /^['-]|['-]$/.test(p)) || letras(partes[0]) < 2) return 'Nome inválido.';
+    if (letras(partes[partes.length - 1]) < 2) return 'Informe o sobrenome completo.';
     if (v.length < 5) return 'Nome muito curto.';
     if (/(.)\1\1/i.test(v.replace(/\s/g, ''))) return 'Confira o nome digitado.';
     return '';
@@ -391,7 +417,9 @@
 
   /* ---------------- Admin ---------------- */
   const isAdmin = () => { try { return sessionStorage.getItem(KEY_ADMIN) === '1'; } catch (e) { return false; } };
+  const POR_PAGINA = 50;
   let filtro = 'todas';
+  let limiteLista = POR_PAGINA;
 
   function renderAdmin() {
     const lista = db.all();
@@ -410,22 +438,28 @@
     renderLista();
   }
 
-  function renderLista() {
+  function filtrarLista() {
     const busca = semAcento($('#adminBusca').value.trim());
-    const buscaDig = soDigitos(busca);
+    const dig = soDigitos(busca);
+    // Só dígitos (ou "#12"): até 4 dígitos procura o nº da inscrição, acima disso o telefone
+    const numerica = dig && !/[a-z]/.test(busca);
+    const porNumero = numerica && (dig.length <= 4 || busca.startsWith('#'));
     let lista = db.all().slice().reverse();
 
     if (filtro === 'pendente') lista = lista.filter((i) => i.status === 'pendente');
     else if (filtro !== 'todas') lista = lista.filter((i) => i.categoria === filtro);
 
-    if (busca) {
-      lista = lista.filter((i) =>
-        semAcento(i.crianca).includes(busca) ||
-        semAcento(i.responsavel).includes(busca) ||
-        (buscaDig && (i.telefone.includes(buscaDig) || pad(i.numero).includes(buscaDig))));
-    }
+    if (!busca) return lista;
+    if (porNumero) return lista.filter((i) => i.numero === Number(dig));
+    if (numerica) return lista.filter((i) => i.telefone.includes(dig));
+    return lista.filter((i) => semAcento(i.crianca).includes(busca) || semAcento(i.responsavel).includes(busca));
+  }
 
+  function renderLista() {
+    const lista = filtrarLista();
     const el = $('#adminLista');
+    const abertos = new Set($$('.item[open]', el).map((d) => d.dataset.id));
+
     if (!lista.length) {
       el.innerHTML = `<div class="empty">
         <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
@@ -433,12 +467,18 @@
       return;
     }
 
-    el.innerHTML = lista.map((i) => {
+    const visiveis = lista.slice(0, limiteLista);
+    const restam = lista.length - visiveis.length;
+    const rodape = `
+      <p class="lista-info">Mostrando ${visiveis.length} de ${lista.length}</p>
+      ${restam > 0 ? `<button class="btn btn-secondary btn-block lista-mais" type="button" data-act="mais">Mostrar mais ${Math.min(restam, POR_PAGINA)}</button>` : ''}`;
+
+    el.innerHTML = visiveis.map((i) => {
       const cat = categoriaPorId(i.categoria);
       const ok = i.status === 'confirmada';
       const tel = soDigitos(i.telefone);
       return `
-        <details class="item" data-id="${i.id}">
+        <details class="item" data-id="${i.id}"${abertos.has(i.id) ? ' open' : ''}>
           <summary>
             <div class="avatar ${i.categoria === 'B' ? 'b' : ''}">${esc(iniciais(i.crianca))}</div>
             <div class="item-main">
@@ -462,7 +502,7 @@
             </div>
           </div>
         </details>`;
-    }).join('');
+    }).join('') + rodape;
   }
 
   function exportarCSV() {
@@ -537,7 +577,7 @@
       const input = $(`[name="${n}"]`, form);
       input.addEventListener('input', () => {
         // bloqueia números e símbolos enquanto digita
-        const limpo = input.value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' ]/g, '').replace(/\s{2,}/g, ' ');
+        const limpo = input.value.replace(RE_NAO_NOME, '').replace(/\s{2,}/g, ' ');
         if (limpo !== input.value) input.value = limpo;
         if (input.closest('.field').classList.contains('invalid')) validarCampo(n);
       });
@@ -585,8 +625,8 @@
           toast('Essa criança já tem uma inscrição pendente.');
           location.hash = '#/pagamento/' + duplicada.id;
         } else {
-          setErro('crianca', `${crianca} já está inscrita (${codigo(duplicada)}).`);
-          toast('Criança já inscrita.', true);
+          setErro('crianca', `Já existe uma inscrição confirmada para ${crianca} (${codigo(duplicada)}).`);
+          toast('Inscrição já realizada.', true);
         }
         return;
       }
@@ -617,12 +657,17 @@
       location.hash = '#/';
     });
 
-    $('#adminBusca').addEventListener('input', renderLista);
+    let buscaTimer;
+    $('#adminBusca').addEventListener('input', () => {
+      clearTimeout(buscaTimer);
+      buscaTimer = setTimeout(() => { limiteLista = POR_PAGINA; renderLista(); }, 120);
+    });
 
     $('#adminFiltro').addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
       filtro = b.dataset.f;
+      limiteLista = POR_PAGINA;
       $$('#adminFiltro button').forEach((x) => x.classList.toggle('active', x === b));
       renderLista();
     });
@@ -630,6 +675,11 @@
     $('#adminLista').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-act]');
       if (!b) return;
+      if (b.dataset.act === 'mais') {
+        limiteLista += POR_PAGINA;
+        renderLista();
+        return;
+      }
       const id = b.closest('.item').dataset.id;
       const i = db.find(id);
       if (!i) return;
@@ -664,6 +714,7 @@
 
   function mostrar(view) {
     $$('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === view));
+    document.body.dataset.view = view;
     $('#topbarTitle').textContent = TITULOS[view];
     $('#btnBack').hidden = view === 'home';
     window.scrollTo(0, 0);
@@ -699,7 +750,9 @@
   $('#btnCopiaChave').addEventListener('click', () => copiar(CONFIG.pix.chave, 'Chave Pix copiada!'));
   window.addEventListener('scroll', atualizarTopbar, { passive: true });
   window.addEventListener('hashchange', render);
-  window.addEventListener('storage', (e) => { if (e.key === KEY_DADOS) render(); });
+  window.addEventListener('storage', (e) => {
+    if (e.key === KEY_DADOS || e.key === null) { db.invalidar(); render(); }
+  });
 
   ligarFormulario();
   ligarAdmin();
